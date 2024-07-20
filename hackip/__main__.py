@@ -14,6 +14,7 @@ from .helpers import create_folder
 from .logger_config import setup_logging
 from .platforms.os import LinuxOS, MacOS, WindowsOS
 from rich import print as rprint
+from .assistant.utils import SLMAssistantAPI
 
 # Setup logging
 setup_logging()
@@ -26,6 +27,7 @@ class HackIP:
     def __init__(self, configuration, advanced_scanning=False):
         self.configuration = configuration
         self.advanced_scanning = advanced_scanning
+        SLMAssistantAPI().download_slm()
 
     def introduction(self):
         try:

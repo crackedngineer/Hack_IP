@@ -4,6 +4,79 @@ import requests
 from openai import OpenAI
 from rich.status import Status
 
+from langchain_huggingface import HuggingFacePipeline
+from langchain.chains import LLMChain
+from langchain_core.prompts import PromptTemplate
+from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+
+
+class SLMAssistantAPI:
+    """
+    Integrate Small Language Model from HF / Local.
+    Reference: https://colab.research.google.com/drive/1h2505J5H4Y9vngzPD08ppf1ga8sWxLvZ?usp=sharing#scrollTo=uWIc38V4t5gA
+    """
+
+    default_prompt = None  # Class variable to store the default prompt
+    default_model_id = (
+        "TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF"  # Default model ID for all instances
+    )
+
+    def __init__(self) -> None:
+        self._prompt = None  # Instance-specific prompt
+        self._model_id = None  # Instance-specific model ID
+
+    @property
+    def prompt(self):
+        return (
+            self._prompt if self._prompt is not None else SLMAssistantAPI.default_prompt
+        )
+
+    @prompt.setter
+    def prompt(self, value):
+        if isinstance(value, PromptTemplate):
+            self._prompt = value
+        else:
+            raise ValueError("Prompt must be of type PromptTemplate.")
+
+    @property
+    def model_id(self):
+        return (
+            self._model_id
+            if self._model_id is not None
+            else SLMAssistantAPI.default_model_id
+        )
+
+    @model_id.setter
+    def model_id(self, value):
+        if isinstance(value, str):
+            self._model_id = value
+        else:
+            raise ValueError("Model ID must be a string.")
+
+    @classmethod
+    def add_template(cls, template: str) -> None:
+        cls.default_prompt = PromptTemplate(
+            template=template, input_variables=["question"]
+        )
+
+    def execute(self, question: str) -> str:
+        if not self.prompt:
+            raise ValueError("No prompt template has been set.")
+        tokenizer = AutoTokenizer.from_pretrained(self.model_id)
+        model = AutoModelForCausalLM.from_pretrained(self.model_id)
+
+        pipe = pipeline(
+            "text-generation", model=model, tokenizer=tokenizer, max_length=100
+        )
+
+        local_llm = HuggingFacePipeline(pipeline=pipe)
+
+        llm_chain = LLMChain(
+            prompt=self.prompt,
+            llm=local_llm,
+        )
+        return llm_chain.invoke(question)
+
 
 class AssistantAPI(object):
     BASE_URL = "https://api.openai.com/v1/assistants"
@@ -126,3 +199,13 @@ class AssistantAPI(object):
     def get_thread_list(self, thread_id):
         thread_messages = self._client.beta.threads.messages.list(thread_id)
         return thread_messages
+
+
+if __name__ == "__main__":
+    import os
+
+    os.environ["HUGGINGFACEHUB_API_TOKEN"] = "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"
+    obj = SLMAssistantAPI()
+    obj.model_id = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    obj.add_template("""Question: {question} \n\n Answer: Let's think step by step.""")
+    print(obj.execute("What is the capital of France?"))
